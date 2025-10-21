@@ -17,6 +17,8 @@ License:        Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND MIT
 URL:            https://github.com/mikefarah/yq
 Source0:        https://github.com/mikefarah/yq/archive/refs/tags/v%{version}.tar.gz
 
+%global debug_package %{nil}
+
 BuildRequires:  go
 BuildRequires:  bash-completion
 BuildRequires:  fish
