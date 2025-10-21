@@ -9,7 +9,7 @@
 ## END: Set by rpmautospec
 
 Name:           yq
-Version:        4.47.2
+Version:        4.48.1
 Release:        %autorelease
 Summary:        Portable command-line YAML, JSON, XML, CSV, TOML and properties processor
 
