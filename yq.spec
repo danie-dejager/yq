@@ -15,7 +15,7 @@ Summary:        Portable command-line YAML, JSON, XML, CSV, TOML and properties 
 
 License:        Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND MIT
 URL:            https://github.com/mikefarah/yq
-Source0:        https://github.com/mikefarah/yq/%{name}-%{version}.tar.gz
+Source0:        https://github.com/mikefarah/yq/archive/refs/tags/v%{version}.tar.gz
 
 BuildRequires:  go
 BuildRequires:  bash-completion
