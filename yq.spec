@@ -19,6 +19,7 @@ Source0:        https://github.com/mikefarah/yq/archive/refs/tags/v%{version}.ta
 
 %global debug_package %{nil}
 
+BuildRequires:  git
 BuildRequires:  go
 BuildRequires:  bash-completion
 BuildRequires:  fish
