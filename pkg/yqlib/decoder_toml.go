@@ -8,16 +8,19 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	toml "github.com/pelletier/go-toml/v2/unstable"
 )
 
 type tomlDecoder struct {
-	parser   toml.Parser
-	finished bool
-	d        DataTreeNavigator
-	rootMap  *CandidateNode
+	parser           toml.Parser
+	finished         bool
+	d                DataTreeNavigator
+	rootMap          *CandidateNode
+	pendingComments  []string // Head comments collected from Comment nodes
+	firstContentSeen bool     // Track if we've processed the first non-comment node
 }
 
 func NewTomlDecoder() Decoder {
@@ -28,7 +31,7 @@ func NewTomlDecoder() Decoder {
 }
 
 func (dec *tomlDecoder) Init(reader io.Reader) error {
-	dec.parser = toml.Parser{}
+	dec.parser = toml.Parser{KeepComments: true}
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(reader)
 	if err != nil {
@@ -39,6 +42,8 @@ func (dec *tomlDecoder) Init(reader io.Reader) error {
 		Kind: MappingNode,
 		Tag:  "!!map",
 	}
+	dec.pendingComments = make([]string, 0)
+	dec.firstContentSeen = false
 	return nil
 }
 
@@ -56,11 +61,22 @@ func (dec *tomlDecoder) getFullPath(tomlNode *toml.Node) []interface{} {
 func (dec *tomlDecoder) processKeyValueIntoMap(rootMap *CandidateNode, tomlNode *toml.Node) error {
 	value := tomlNode.Value()
 	path := dec.getFullPath(value.Next())
-	log.Debug("processKeyValueIntoMap: %v", path)
 
 	valueNode, err := dec.decodeNode(value)
 	if err != nil {
 		return err
+	}
+
+	// Attach pending head comments
+	if len(dec.pendingComments) > 0 {
+		valueNode.HeadComment = strings.Join(dec.pendingComments, "\n")
+		dec.pendingComments = make([]string, 0)
+	}
+
+	// Check for inline comment chained to the KeyValue node
+	nextNode := tomlNode.Next()
+	if nextNode != nil && nextNode.Kind == toml.Comment {
+		valueNode.LineComment = string(nextNode.Data)
 	}
 
 	context := Context{}
@@ -79,11 +95,15 @@ func (dec *tomlDecoder) decodeKeyValuesIntoMap(rootMap *CandidateNode, tomlNode 
 		nextItem := dec.parser.Expression()
 		log.Debug("decodeKeyValuesIntoMap -- next exp, its a %v", nextItem.Kind)
 
-		if nextItem.Kind == toml.KeyValue {
+		switch nextItem.Kind {
+		case toml.KeyValue:
 			if err := dec.processKeyValueIntoMap(rootMap, nextItem); err != nil {
 				return false, err
 			}
-		} else {
+		case toml.Comment:
+			// Standalone comment - add to pending for next element
+			dec.pendingComments = append(dec.pendingComments, string(nextItem.Data))
+		default:
 			// run out of key values
 			log.Debug("done in decodeKeyValuesIntoMap, gota a %v", nextItem.Kind)
 			return true, nil
@@ -250,11 +270,29 @@ func (dec *tomlDecoder) processTopLevelNode(currentNode *toml.Node) (bool, error
 	var err error
 	log.Debug("processTopLevelNode: Going to process %v state is current %v", currentNode.Kind, NodeToString(dec.rootMap))
 	switch currentNode.Kind {
+	case toml.Comment:
+		// Collect comment to attach to next element
+		commentText := string(currentNode.Data)
+		// If we haven't seen any content yet, accumulate comments for root
+		if !dec.firstContentSeen {
+			if dec.rootMap.HeadComment == "" {
+				dec.rootMap.HeadComment = commentText
+			} else {
+				dec.rootMap.HeadComment = dec.rootMap.HeadComment + "\n" + commentText
+			}
+		} else {
+			// We've seen content, so these comments are for the next element
+			dec.pendingComments = append(dec.pendingComments, commentText)
+		}
+		return false, nil
 	case toml.Table:
+		dec.firstContentSeen = true
 		runAgainstCurrentExp, err = dec.processTable(currentNode)
 	case toml.ArrayTable:
+		dec.firstContentSeen = true
 		runAgainstCurrentExp, err = dec.processArrayTable(currentNode)
 	default:
+		dec.firstContentSeen = true
 		runAgainstCurrentExp, err = dec.decodeKeyValuesIntoMap(dec.rootMap, currentNode)
 	}
 
@@ -264,18 +302,33 @@ func (dec *tomlDecoder) processTopLevelNode(currentNode *toml.Node) (bool, error
 
 func (dec *tomlDecoder) processTable(currentNode *toml.Node) (bool, error) {
 	log.Debug("Enter processTable")
-	fullPath := dec.getFullPath(currentNode.Child())
+	child := currentNode.Child()
+	fullPath := dec.getFullPath(child)
 	log.Debug("fullpath: %v", fullPath)
 
+	c := Context{}
+	c = c.SingleChildContext(dec.rootMap)
+
+	fullPath, err := getPathToUse(fullPath, dec, c)
+	if err != nil {
+		return false, err
+	}
+
 	tableNodeValue := &CandidateNode{
-		Kind:    MappingNode,
-		Tag:     "!!map",
-		Content: make([]*CandidateNode, 0),
+		Kind:           MappingNode,
+		Tag:            "!!map",
+		Content:        make([]*CandidateNode, 0),
+		EncodeSeparate: true,
+	}
+
+	// Attach pending head comments to the table
+	if len(dec.pendingComments) > 0 {
+		tableNodeValue.HeadComment = strings.Join(dec.pendingComments, "\n")
+		dec.pendingComments = make([]string, 0)
 	}
 
 	var tableValue *toml.Node
 	runAgainstCurrentExp := false
-	var err error
 	hasValue := dec.parser.NextExpression()
 	// check to see if there is any table data
 	if hasValue {
@@ -292,8 +345,6 @@ func (dec *tomlDecoder) processTable(currentNode *toml.Node) (bool, error) {
 		}
 	}
 
-	c := Context{}
-	c = c.SingleChildContext(dec.rootMap)
 	err = dec.d.DeeplyAssign(c, fullPath, tableNodeValue)
 	if err != nil {
 		return false, err
@@ -324,35 +375,78 @@ func (dec *tomlDecoder) arrayAppend(context Context, path []interface{}, rhsNode
 }
 
 func (dec *tomlDecoder) processArrayTable(currentNode *toml.Node) (bool, error) {
-	log.Debug("Entering processArrayTable")
-	fullPath := dec.getFullPath(currentNode.Child())
+	log.Debug("Enter processArrayTable")
+	child := currentNode.Child()
+	fullPath := dec.getFullPath(child)
 	log.Debug("Fullpath: %v", fullPath)
+
+	c := Context{}
+	c = c.SingleChildContext(dec.rootMap)
+
+	fullPath, err := getPathToUse(fullPath, dec, c)
+	if err != nil {
+		return false, err
+	}
 
 	// need to use the array append exp to add another entry to
 	// this array: fullpath += [ thing ]
-
 	hasValue := dec.parser.NextExpression()
-	if !hasValue {
-		return false, fmt.Errorf("error retrieving table %v value: %w", fullPath, dec.parser.Error())
-	}
 
 	tableNodeValue := &CandidateNode{
-		Kind: MappingNode,
-		Tag:  "!!map",
+		Kind:           MappingNode,
+		Tag:            "!!map",
+		EncodeSeparate: true,
 	}
 
-	tableValue := dec.parser.Expression()
-	runAgainstCurrentExp, err := dec.decodeKeyValuesIntoMap(tableNodeValue, tableValue)
-	log.Debugf("table node err: %w", err)
-	if err != nil && !errors.Is(err, io.EOF) {
-		return false, err
+	// Attach pending head comments to the array table
+	if len(dec.pendingComments) > 0 {
+		tableNodeValue.HeadComment = strings.Join(dec.pendingComments, "\n")
+		dec.pendingComments = make([]string, 0)
 	}
-	c := Context{}
 
-	c = c.SingleChildContext(dec.rootMap)
+	runAgainstCurrentExp := false
+	// if the next value is a ArrayTable or Table, then its not part of this declaration (not a key value pair)
+	// so lets leave that expression for the next round of parsing
+	if hasValue && (dec.parser.Expression().Kind == toml.ArrayTable || dec.parser.Expression().Kind == toml.Table) {
+		runAgainstCurrentExp = true
+	} else if hasValue {
+		// otherwise, if there is a value, it must be some key value pairs of the
+		// first object in the array!
+		tableValue := dec.parser.Expression()
+		runAgainstCurrentExp, err = dec.decodeKeyValuesIntoMap(tableNodeValue, tableValue)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return false, err
+		}
+	}
 
 	// += function
 	err = dec.arrayAppend(c, fullPath, tableNodeValue)
 
 	return runAgainstCurrentExp, err
+}
+
+// if fullPath points to an array of maps rather than a map
+// then it should set this element into the _last_ element of that array.
+// Because TOML. So we'll inject the last index into the path.
+
+func getPathToUse(fullPath []interface{}, dec *tomlDecoder, c Context) ([]interface{}, error) {
+	pathToCheck := fullPath
+	if len(fullPath) >= 1 {
+		pathToCheck = fullPath[:len(fullPath)-1]
+	}
+	readOp := createTraversalTree(pathToCheck, traversePreferences{DontAutoCreate: true}, false)
+
+	resultContext, err := dec.d.GetMatchingNodes(c, readOp)
+	if err != nil {
+		return nil, err
+	}
+	if resultContext.MatchingNodes.Len() >= 1 {
+		match := resultContext.MatchingNodes.Front().Value.(*CandidateNode)
+		// path refers to an array, we need to add this to the last element in the array
+		if match.Kind == SequenceNode {
+			fullPath = append(pathToCheck, len(match.Content)-1, fullPath[len(fullPath)-1])
+			log.Debugf("Adding to end of %v array, using path: %v", pathToCheck, fullPath)
+		}
+	}
+	return fullPath, err
 }

@@ -22,6 +22,12 @@ var YamlFormat = &Format{"yaml", []string{"y", "yml"},
 	func() Decoder { return NewYamlDecoder(ConfiguredYamlPreferences) },
 }
 
+var KYamlFormat = &Format{"kyaml", []string{"ky"},
+	func() Encoder { return NewKYamlEncoder(ConfiguredKYamlPreferences) },
+	// KYaml is stricter YAML
+	func() Decoder { return NewYamlDecoder(ConfiguredYamlPreferences) },
+}
+
 var JSONFormat = &Format{"json", []string{"j"},
 	func() Encoder { return NewJSONEncoder(ConfiguredJSONPreferences) },
 	func() Decoder { return NewJSONDecoder() },
@@ -63,8 +69,13 @@ var ShFormat = &Format{"", nil,
 }
 
 var TomlFormat = &Format{"toml", []string{},
-	func() Encoder { return NewTomlEncoder() },
+	func() Encoder { return NewTomlEncoderWithPrefs(ConfiguredTomlPreferences) },
 	func() Decoder { return NewTomlDecoder() },
+}
+
+var HclFormat = &Format{"hcl", []string{"h", "tf"},
+	func() Encoder { return NewHclEncoder(ConfiguredHclPreferences) },
+	func() Decoder { return NewHclDecoder() },
 }
 
 var ShellVariablesFormat = &Format{"shell", []string{"s", "sh"},
@@ -84,6 +95,7 @@ var INIFormat = &Format{"ini", []string{"i"},
 
 var Formats = []*Format{
 	YamlFormat,
+	KYamlFormat,
 	JSONFormat,
 	PropertiesFormat,
 	CSVFormat,
@@ -93,6 +105,7 @@ var Formats = []*Format{
 	UriFormat,
 	ShFormat,
 	TomlFormat,
+	HclFormat,
 	ShellVariablesFormat,
 	LuaFormat,
 	INIFormat,

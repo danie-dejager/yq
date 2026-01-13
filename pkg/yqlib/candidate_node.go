@@ -97,6 +97,9 @@ type CandidateNode struct {
 	// (e.g. top level cross document merge). This property does not propagate to child nodes.
 	EvaluateTogether bool
 	IsMapKey         bool
+	// For formats like HCL and TOML: indicates that child entries should be emitted as separate blocks/tables
+	// rather than consolidated into nested mappings (default behaviour)
+	EncodeSeparate bool
 }
 
 func (n *CandidateNode) CreateChild() *CandidateNode {
@@ -407,6 +410,8 @@ func (n *CandidateNode) doCopy(cloneContent bool) *CandidateNode {
 
 		EvaluateTogether: n.EvaluateTogether,
 		IsMapKey:         n.IsMapKey,
+
+		EncodeSeparate: n.EncodeSeparate,
 	}
 
 	if cloneContent {
@@ -459,6 +464,9 @@ func (n *CandidateNode) UpdateAttributesFrom(other *CandidateNode, prefs assignP
 	if !prefs.DontOverWriteAnchor {
 		n.Anchor = other.Anchor
 	}
+
+	// Preserve EncodeSeparate flag for format-specific encoding hints
+	n.EncodeSeparate = other.EncodeSeparate
 
 	// merge will pickup the style of the new thing
 	// when autocreating nodes
