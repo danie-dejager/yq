@@ -228,31 +228,64 @@ B = 12
 name = "Tom"  # name comment
 `
 
-// var sampleFromWeb = `
-// # This is a TOML document
+// Reproduce bug for https://github.com/mikefarah/yq/issues/2588
+// Bug: standalone comments inside a table cause subsequent key-values to be assigned at root.
+var issue2588RustToolchainWithComments = `[owner]
+# comment
+name = "Tomer"
+`
 
-// title = "TOML Example"
+var tableWithComment = `[owner]
+# comment
+[things]
+`
 
-// [owner]
-// name = "Tom Preston-Werner"
-// dob = 1979-05-27T07:32:00-08:00
+var sampleFromWeb = `# This is a TOML document
+title = "TOML Example"
 
-// [database]
-// enabled = true
-// ports = [8000, 8001, 8002]
-// data = [["delta", "phi"], [3.14]]
-// temp_targets = { cpu = 79.5, case = 72.0 }
+[owner]
+name = "Tom Preston-Werner"
+dob = 1979-05-27T07:32:00-08:00
 
-// [servers]
+[database]
+enabled = true
+ports = [8000, 8001, 8002]
+data = [["delta", "phi"], [3.14]]
+temp_targets = { cpu = 79.5, case = 72.0 }
 
-// [servers.alpha]
-// ip = "10.0.0.1"
-// role = "frontend"
+# [servers] yq can't do this one yet
+[servers.alpha]
+ip = "10.0.0.1"
+role = "frontend"
 
-// [servers.beta]
-// ip = "10.0.0.2"
-// role = "backend"
-// `
+[servers.beta]
+ip = "10.0.0.2"
+role = "backend"
+`
+
+var subArrays = `
+[[array]]
+
+[[array.subarray]]
+
+[[array.subarray.subsubarray]]
+`
+
+var tomlTableWithComments = `[section]
+the_array = [
+  # comment
+  "value 1",
+
+  # comment
+  "value 2",
+]
+`
+
+var expectedSubArrays = `array:
+  - subarray:
+      - subsubarray:
+          - {}
+`
 
 var tomlScenarios = []formatScenario{
 	{
@@ -461,6 +494,13 @@ var tomlScenarios = []formatScenario{
 		expected:     expectedMultipleEmptyTables,
 		scenarioType: "decode",
 	},
+	{
+		description:  "subArrays",
+		skipDoc:      true,
+		input:        subArrays,
+		expected:     expectedSubArrays,
+		scenarioType: "decode",
+	},
 	// Roundtrip scenarios
 	{
 		description:  "Roundtrip: inline table attribute",
@@ -532,13 +572,48 @@ var tomlScenarios = []formatScenario{
 		expected:     rtComments,
 		scenarioType: "roundtrip",
 	},
-	// {
-	// 	description:  "Roundtrip: sample from web",
-	// 	input:        sampleFromWeb,
-	// 	expression:   ".",
-	// 	expected:     sampleFromWeb,
-	// 	scenarioType: "roundtrip",
-	// },
+	{
+		skipDoc:      true,
+		description:  "Issue #2588: comments inside table must not flatten (.owner.name)",
+		input:        issue2588RustToolchainWithComments,
+		expression:   ".owner.name",
+		expected:     "Tomer\n",
+		scenarioType: "decode",
+	},
+	{
+		skipDoc:      true,
+		description:  "Issue #2588: comments inside table must not flatten (.name)",
+		input:        issue2588RustToolchainWithComments,
+		expression:   ".name",
+		expected:     "null\n",
+		scenarioType: "decode",
+	},
+	{
+		skipDoc:      true,
+		input:        issue2588RustToolchainWithComments,
+		expected:     issue2588RustToolchainWithComments,
+		scenarioType: "roundtrip",
+	},
+	{
+		skipDoc:      true,
+		input:        tableWithComment,
+		expression:   ".owner | headComment",
+		expected:     "comment\n",
+		scenarioType: "roundtrip",
+	},
+	{
+		description:  "Roundtrip: sample from web",
+		input:        sampleFromWeb,
+		expression:   ".",
+		expected:     sampleFromWeb,
+		scenarioType: "roundtrip",
+	},
+	{
+		skipDoc:      true,
+		input:        tomlTableWithComments,
+		expected:     tomlTableWithComments,
+		scenarioType: "roundtrip",
+	},
 }
 
 func testTomlScenario(t *testing.T, s formatScenario) {
@@ -632,6 +707,11 @@ func TestTomlScenarios(t *testing.T) {
 // TestTomlColourization tests that colourization correctly distinguishes
 // between table section headers and inline arrays
 func TestTomlColourization(t *testing.T) {
+	// Save and restore color state
+	oldNoColor := color.NoColor
+	color.NoColor = false
+	defer func() { color.NoColor = oldNoColor }()
+
 	// Test that inline arrays are not coloured as table sections
 	encoder := &tomlEncoder{prefs: TomlPreferences{ColorsEnabled: true}}
 
@@ -655,8 +735,9 @@ alpha = "test"
 	// for actual table sections, not for inline arrays.
 
 	// Get the ANSI codes for section colour (Yellow + Bold)
-	sectionColour := color.New(color.FgYellow, color.Bold).SprintFunc()
-	sampleSection := sectionColour("[database]")
+	sectionColourObj := color.New(color.FgYellow, color.Bold)
+	sectionColourObj.EnableColor()
+	sampleSection := sectionColourObj.Sprint("[database]")
 
 	// Extract just the ANSI codes from the sample
 	// ANSI codes start with \x1b[
@@ -884,4 +965,33 @@ func TestTomlStringEscapeColourization(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTomlEncoderPrintDocumentSeparator(t *testing.T) {
+	encoder := NewTomlEncoder()
+	var buf bytes.Buffer
+	writer := bufio.NewWriter(&buf)
+
+	err := encoder.PrintDocumentSeparator(writer)
+	writer.Flush()
+
+	test.AssertResult(t, nil, err)
+	test.AssertResult(t, "", buf.String())
+}
+
+func TestTomlEncoderPrintLeadingContent(t *testing.T) {
+	encoder := NewTomlEncoder()
+	var buf bytes.Buffer
+	writer := bufio.NewWriter(&buf)
+
+	err := encoder.PrintLeadingContent(writer, "some content")
+	writer.Flush()
+
+	test.AssertResult(t, nil, err)
+	test.AssertResult(t, "", buf.String())
+}
+
+func TestTomlEncoderCanHandleAliases(t *testing.T) {
+	encoder := NewTomlEncoder()
+	test.AssertResult(t, false, encoder.CanHandleAliases())
 }
