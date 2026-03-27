@@ -65,7 +65,12 @@ install -Dpm 0644 %{name}.fish %{buildroot}%{fish_completions_dir}/%{name}.fish
 install -Dpm 0644 %{name}.zsh  %{buildroot}%{zsh_completions_dir}/_%{name}
 
 %check
-go test ./...
+export GOPROXY=https://proxy.golang.org,direct
+export GOSUMDB=sum.golang.org
+export GO111MODULE=on
+go mod tidy
+go mod vendor
+go test -mod=vendor ./...
 
 %files
 %license LICENSE
