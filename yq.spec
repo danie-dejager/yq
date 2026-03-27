@@ -50,7 +50,6 @@ This package contains Zsh shell completion for %{name}.
 %build
 export GO111MODULE=on
 export GOPROXY=https://proxy.golang.org,direct
-export GOSUMDB=sum.golang.org
 
 go build -mod=mod -o %{name} .
 
@@ -68,8 +67,8 @@ install -Dpm 0644 %{name}.zsh  %{buildroot}%{zsh_completions_dir}/_%{name}
 %check
 export GO111MODULE=on
 export GOPROXY=https://proxy.golang.org,direct
-export GOSUMDB=sum.golang.org
-go test -mod=vendor ./...
+
+go test -mod=mod -o %{name} .
 
 %files
 %license LICENSE
