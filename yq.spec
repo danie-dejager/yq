@@ -49,9 +49,10 @@ This package contains Zsh shell completion for %{name}.
 
 %build
 export GO111MODULE=on
-go mod tidy
-go mod vendor
-go build -mod=vendor -o %{name} .
+export GOPROXY=https://proxy.golang.org,direct
+export GOSUMDB=sum.golang.org
+
+go build -mod=mod -o %{name} .
 
 ./%{name} shell-completion bash > %{name}.bash
 ./%{name} shell-completion fish > %{name}.fish
@@ -65,11 +66,9 @@ install -Dpm 0644 %{name}.fish %{buildroot}%{fish_completions_dir}/%{name}.fish
 install -Dpm 0644 %{name}.zsh  %{buildroot}%{zsh_completions_dir}/_%{name}
 
 %check
+export GO111MODULE=on
 export GOPROXY=https://proxy.golang.org,direct
 export GOSUMDB=sum.golang.org
-export GO111MODULE=on
-go mod tidy
-go mod vendor
 go test -mod=vendor ./...
 
 %files
