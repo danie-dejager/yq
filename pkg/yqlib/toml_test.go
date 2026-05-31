@@ -209,6 +209,50 @@ address = "12 cat st"
 var rtEmptyArray = `A = []
 `
 
+var rtEmptyArrayInTable = `[features]
+my-feature = []
+`
+
+var rtMixedEmptyArraysInTable = `[features]
+my-other-feature = []
+my-feature = ["my-other-feature"]
+`
+
+var yamlEmptyArrayInTable = `features:
+  my-feature: []
+`
+
+var expectedTomlEmptyArrayInTable = `[features]
+my-feature = []
+`
+
+var yamlMixedEmptyArraysInTable = `features:
+  my-other-feature: []
+  my-feature:
+    - my-other-feature
+`
+
+var expectedTomlMixedEmptyArraysInTable = `[features]
+my-other-feature = []
+my-feature = ["my-other-feature"]
+`
+
+var issue2688SampleToml = `[project]
+name = "some-project"
+version = "0.5.1"
+authors = [{name = "Author", email = "author@example.com"}]
+license = { file = "LICENSE" }
+readme = "README.md"
+`
+
+var issue2688SampleExpected = `[project]
+name = "some-project"
+version = "0.5.2"
+authors = [{ name = "Author", email = "author@example.com" }]
+license = { file = "LICENSE" }
+readme = "README.md"
+`
+
 var rtSampleTable = `var = "x"
 
 [owner.contact]
@@ -564,6 +608,36 @@ var tomlScenarios = []formatScenario{
 		scenarioType: "roundtrip",
 	},
 	{
+		skipDoc:      true,
+		description:  "Issue #2674: roundtrip empty array in table",
+		input:        rtEmptyArrayInTable,
+		expression:   ".",
+		expected:     rtEmptyArrayInTable,
+		scenarioType: "roundtrip",
+	},
+	{
+		skipDoc:      true,
+		description:  "Issue #2674: roundtrip mixed empty and non-empty arrays in table",
+		input:        rtMixedEmptyArraysInTable,
+		expression:   ".",
+		expected:     rtMixedEmptyArraysInTable,
+		scenarioType: "roundtrip",
+	},
+	{
+		skipDoc:      true,
+		description:  "Issue #2674: encode empty array in table",
+		input:        yamlEmptyArrayInTable,
+		expected:     expectedTomlEmptyArrayInTable,
+		scenarioType: "encode",
+	},
+	{
+		skipDoc:      true,
+		description:  "Issue #2674: encode mixed empty and non-empty arrays in table",
+		input:        yamlMixedEmptyArraysInTable,
+		expected:     expectedTomlMixedEmptyArraysInTable,
+		scenarioType: "encode",
+	},
+	{
 		description:  "Roundtrip: sample table",
 		input:        rtSampleTable,
 		expression:   ".",
@@ -649,10 +723,32 @@ var tomlScenarios = []formatScenario{
 	},
 	{
 		skipDoc:      true,
-		description:  "Encode: YAML flow mapping stays inline",
+		description:  "Encode: YAML flow mapping produces table section (same as block mapping)",
 		input:        "arg: {hello: foo}\n",
-		expected:     "arg = { hello = \"foo\" }\n",
+		expected:     "[arg]\nhello = \"foo\"\n",
 		scenarioType: "encode",
+	},
+	{
+		skipDoc:      true,
+		description:  "Issue: JSON auto-detected via YAML decoder produces table sections",
+		input:        `{"arg":{"hello": "foo"}}`,
+		expected:     "[arg]\nhello = \"foo\"\n",
+		scenarioType: "encode",
+	},
+	{
+		skipDoc:      true,
+		description:  "Issue: JSON via JSON decoder produces table sections",
+		input:        `{"arg":{"hello": "foo"}}`,
+		expected:     "[arg]\nhello = \"foo\"\n",
+		scenarioType: "encode-json",
+	},
+	{
+		skipDoc:      true,
+		description:  "Issue 2688: inline table arrays do not change following table scope",
+		input:        issue2688SampleToml,
+		expression:   `.project.version = "0.5.2"`,
+		expected:     issue2688SampleExpected,
+		scenarioType: "roundtrip",
 	},
 	{
 		skipDoc:      true,
@@ -695,6 +791,8 @@ func testTomlScenario(t *testing.T, s formatScenario) {
 		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewTomlDecoder(), NewTomlEncoder()), s.description)
 	case "encode":
 		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewTomlEncoder()), s.description)
+	case "encode-json":
+		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewJSONDecoder(), NewTomlEncoder()), s.description)
 	}
 }
 
@@ -775,7 +873,7 @@ func documentTomlScenario(_ *testing.T, w *bufio.Writer, i interface{}) {
 		documentTomlDecodeScenario(w, s)
 	case "roundtrip":
 		documentTomlRoundtripScenario(w, s)
-	case "encode":
+	case "encode", "encode-json":
 		documentTomlEncodeScenario(w, s)
 
 	default:
@@ -792,6 +890,60 @@ func TestTomlScenarios(t *testing.T) {
 		genericScenarios[i] = s
 	}
 	documentScenarios(t, "usage", "toml", genericScenarios, documentTomlScenario)
+}
+
+func TestTomlEncodeJsonKeepsRootArrayBeforeTables(t *testing.T) {
+	scenario := formatScenario{
+		description: "Encode: JSON root array stays outside later tables",
+		input: `{
+  "_source": {
+    "cookie": [
+      {
+        "Domain": "",
+        "Expires": "0001-01-01T00:00:00Z",
+        "HttpOnly": false,
+        "MaxAge": 0,
+        "Name": "name",
+        "Path": "",
+        "Raw": "",
+        "RawExpires": "",
+        "SameSite": 0,
+        "Secure": false,
+        "Unparsed": null,
+        "Value": "value"
+      }
+    ]
+  },
+  "highlight": {
+    "did": [
+      "did"
+    ]
+  },
+  "sort": [
+    1
+  ]
+}`,
+		expected: `sort = [1]
+
+[[_source.cookie]]
+Domain = ""
+Expires = "0001-01-01T00:00:00Z"
+HttpOnly = false
+MaxAge = 0
+Name = "name"
+Path = ""
+Raw = ""
+RawExpires = ""
+SameSite = 0
+Secure = false
+Value = "value"
+
+[highlight]
+did = ["did"]
+`,
+	}
+
+	test.AssertResultWithContext(t, scenario.expected, mustProcessFormatScenario(scenario, NewJSONDecoder(), NewTomlEncoder()), scenario.description)
 }
 
 // TestTomlColourization tests that colourization correctly distinguishes
