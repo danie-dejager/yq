@@ -9,7 +9,7 @@
 ## END: Set by rpmautospec
 
 Name:           yq
-Version:        4.53.2
+Version:        4.53.3
 Release:        %autorelease
 Summary:        Portable command-line YAML, JSON, XML, CSV, TOML and properties processor
 
@@ -83,6 +83,7 @@ go test -mod=mod -o %{name} .
 %{zsh_completions_dir}/_%{name}
 
 %changelog
+* Mon Jun 8 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.3-1 
 * Fri Apr 17 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.2-1 
 * Thu Mar 2026 Danie de Jager <danie.dejager@gmail.com> - 4.52.5-1
 - Fix: reset TOML decoder state between files (#2634) thanks @terminalchai
