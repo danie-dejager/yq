@@ -5,6 +5,7 @@ package yqlib
 import (
 	"bufio"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/mikefarah/yq/v4/test"
@@ -20,6 +21,16 @@ key = value
 
 const expectedSimpleINIYaml = `section:
   key: value
+`
+
+const quotedINIInput = `[section]
+color_theme = "Default"
+theme_background = "False"
+`
+
+const expectedQuotedINIOutput = `[section]
+color_theme      = "Default"
+theme_background = "False"
 `
 
 var iniScenarios = []formatScenario{
@@ -49,6 +60,22 @@ var iniScenarios = []formatScenario{
 	},
 }
 
+// iniPreserveQuotesPrefs returns INIPreferences with PreserveSurroundedQuote enabled.
+func iniPreserveQuotesPrefs() INIPreferences {
+	prefs := NewDefaultINIPreferences()
+	prefs.PreserveSurroundedQuote = true
+	return prefs
+}
+
+var iniPreserveQuotesScenarios = []formatScenario{
+	{
+		description:  "Roundtrip INI: preserve quotes",
+		input:        quotedINIInput,
+		expected:     expectedQuotedINIOutput,
+		scenarioType: "roundtrip",
+	},
+}
+
 func documentRoundtripINIScenario(w *bufio.Writer, s formatScenario) {
 	writeOrPanic(w, fmt.Sprintf("## %v\n", s.description))
 
@@ -70,7 +97,7 @@ func documentRoundtripINIScenario(w *bufio.Writer, s formatScenario) {
 	}
 
 	writeOrPanic(w, "will output\n")
-	writeOrPanic(w, fmt.Sprintf("```ini\n%v```\n\n", mustProcessFormatScenario(s, NewINIDecoder(), NewINIEncoder())))
+	writeOrPanic(w, fmt.Sprintf("```ini\n%v```\n\n", mustProcessFormatScenario(s, NewINIDecoder(NewDefaultINIPreferences()), NewINIEncoder())))
 }
 
 func documentDecodeINIScenario(w *bufio.Writer, s formatScenario) {
@@ -94,7 +121,7 @@ func documentDecodeINIScenario(w *bufio.Writer, s formatScenario) {
 	}
 
 	writeOrPanic(w, "will output\n")
-	writeOrPanic(w, fmt.Sprintf("```yaml\n%v```\n\n", mustProcessFormatScenario(s, NewINIDecoder(), NewYamlEncoder(ConfiguredYamlPreferences))))
+	writeOrPanic(w, fmt.Sprintf("```yaml\n%v```\n\n", mustProcessFormatScenario(s, NewINIDecoder(NewDefaultINIPreferences()), NewYamlEncoder(ConfiguredYamlPreferences))))
 }
 
 func testINIScenario(t *testing.T, s formatScenario) {
@@ -102,11 +129,11 @@ func testINIScenario(t *testing.T, s formatScenario) {
 	case "encode":
 		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewYamlDecoder(ConfiguredYamlPreferences), NewINIEncoder()), s.description)
 	case "decode":
-		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewINIDecoder(), NewYamlEncoder(ConfiguredYamlPreferences)), s.description)
+		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewINIDecoder(NewDefaultINIPreferences()), NewYamlEncoder(ConfiguredYamlPreferences)), s.description)
 	case "roundtrip":
-		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewINIDecoder(), NewINIEncoder()), s.description)
+		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewINIDecoder(NewDefaultINIPreferences()), NewINIEncoder()), s.description)
 	case "decode-error":
-		result, err := processFormatScenario(s, NewINIDecoder(), NewINIEncoder())
+		result, err := processFormatScenario(s, NewINIDecoder(NewDefaultINIPreferences()), NewINIEncoder())
 		if err == nil {
 			t.Errorf("Expected error '%v' but it worked: %v", s.expectedError, result)
 		} else {
@@ -175,6 +202,21 @@ func documentDecodeErrorINIScenario(w *bufio.Writer, s formatScenario) {
 	writeOrPanic(w, fmt.Sprintf("```\n%v\n```\n\n", s.expectedError))
 }
 
+func TestINIDecoderInitResetsFinished(t *testing.T) {
+	decoder := NewINIDecoder(NewDefaultINIPreferences())
+	firstDocuments, err := readDocuments(strings.NewReader("[first]\nkey = value\n"), "first.ini", 0, decoder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	test.AssertResult(t, 1, firstDocuments.Len())
+
+	secondDocuments, err := readDocuments(strings.NewReader("[second]\nkey = value\n"), "second.ini", 1, decoder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	test.AssertResult(t, 1, secondDocuments.Len())
+}
+
 func TestINIScenarios(t *testing.T) {
 	for _, tt := range iniScenarios {
 		testINIScenario(t, tt)
@@ -184,4 +226,20 @@ func TestINIScenarios(t *testing.T) {
 		genericScenarios[i] = s
 	}
 	documentScenarios(t, "usage", "convert", genericScenarios, documentINIScenario)
+}
+
+func testINIPreserveQuotesScenario(t *testing.T, s formatScenario) {
+	prefs := iniPreserveQuotesPrefs()
+	switch s.scenarioType {
+	case "roundtrip":
+		test.AssertResultWithContext(t, s.expected, mustProcessFormatScenario(s, NewINIDecoder(prefs), NewINIEncoder()), s.description)
+	default:
+		panic(fmt.Sprintf("unhandled scenario type %q", s.scenarioType))
+	}
+}
+
+func TestINIPreserveQuotesScenarios(t *testing.T) {
+	for _, tt := range iniPreserveQuotesScenarios {
+		testINIPreserveQuotesScenario(t, tt)
+	}
 }
