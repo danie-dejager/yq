@@ -13,29 +13,30 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/jinzhu/copier v0.4.0
 	github.com/magiconair/properties v1.8.10
-	github.com/pelletier/go-toml/v2 v2.4.2
+	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/yuin/gopher-lua v1.1.2
-	github.com/zclconf/go-cty v1.18.1
+	github.com/zclconf/go-cty v1.19.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
-	golang.org/x/mod v0.37.0
-	golang.org/x/net v0.56.0
-	golang.org/x/text v0.38.0
+	golang.org/x/mod v0.38.0
+	golang.org/x/net v0.57.0
+	golang.org/x/text v0.40.0
 )
 
 require (
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
+	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
-	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/tools v0.45.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/tools v0.47.0 // indirect
 )
 
 go 1.25.0
