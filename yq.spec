@@ -2,7 +2,7 @@
 ## (rpmautospec version 0.8.2)
 ## RPMAUTOSPEC: autorelease, autochangelog
 %define autorelease(e:s:pb:n) %{?-p:0.}%{lua:
-    release_number = 1;
+    release_number = 2;
     base_release_number = tonumber(rpm.expand("%{?-b*}%{!?-b:1}"));
     print(release_number + base_release_number - 1);
 }%{?-e:.%{-e*}}%{?-s:.%{-s*}}%{!?-n:%{?dist}}
@@ -83,6 +83,7 @@ go test -mod=mod -o %{name} .
 %{zsh_completions_dir}/_%{name}
 
 %changelog
+* Tue Aug 04 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.3-2 
 * Mon Jun 8 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.3-1 
 * Fri Apr 17 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.2-1 
 * Thu Mar 2026 Danie de Jager <danie.dejager@gmail.com> - 4.52.5-1
