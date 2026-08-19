@@ -2,14 +2,14 @@
 ## (rpmautospec version 0.8.2)
 ## RPMAUTOSPEC: autorelease, autochangelog
 %define autorelease(e:s:pb:n) %{?-p:0.}%{lua:
-    release_number = 2;
+    release_number = 1;
     base_release_number = tonumber(rpm.expand("%{?-b*}%{!?-b:1}"));
     print(release_number + base_release_number - 1);
 }%{?-e:.%{-e*}}%{?-s:.%{-s*}}%{!?-n:%{?dist}}
 ## END: Set by rpmautospec
 
 Name:           yq
-Version:        4.53.3
+Version:        4.53.4
 Release:        %autorelease
 Summary:        Portable command-line YAML, JSON, XML, CSV, TOML and properties processor
 
@@ -83,9 +83,10 @@ go test -mod=mod -o %{name} .
 %{zsh_completions_dir}/_%{name}
 
 %changelog
-* Tue Aug 04 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.3-2 
-* Mon Jun 8 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.3-1 
-* Fri Apr 17 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.2-1 
+* Wed Aug 19 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.4-1
+* Tue Aug 04 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.3-2
+* Mon Jun 8 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.3-1
+* Fri Apr 17 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.2-1
 * Thu Mar 2026 Danie de Jager <danie.dejager@gmail.com> - 4.52.5-1
 - Fix: reset TOML decoder state between files (#2634) thanks @terminalchai
 - Fix: preserve original filename when using --front-matter (#2613) thanks @cobyfrombrooklyn-bot
