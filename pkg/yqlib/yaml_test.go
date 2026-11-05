@@ -8,6 +8,18 @@ import (
 
 var yamlFormatScenarios = []formatScenario{
 	{
+		description: "inline separator comment retains the following line",
+		skipDoc:     true,
+		input:       "--- # header\nfoo: 42\n",
+		expected:    "---\n# header\nfoo: 42\n",
+	},
+	{
+		description: "inline separator content retains the following line",
+		skipDoc:     true,
+		input:       "--- foo: 42\nbar: 43\n",
+		expected:    "---\nfoo: 42\nbar: 43\n",
+	},
+	{
 		description: "scalar with doc separator",
 		skipDoc:     true,
 		input:       "--- cat",
@@ -30,6 +42,12 @@ var yamlFormatScenarios = []formatScenario{
 		skipDoc:     true,
 		input:       "%YAML 1.1\r\n---\r\ncat\r\n",
 		expected:    "%YAML 1.1\r\n---\r\ncat\r\n",
+	},
+	{
+		description: "leading comment blank line (CRLF)",
+		skipDoc:     true,
+		input:       "# comment\r\n\r\ncat\r\n",
+		expected:    "# comment\r\n\r\ncat\r\n",
 	},
 	{
 		description: "comment only no trailing newline",
