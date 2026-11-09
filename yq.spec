@@ -9,7 +9,7 @@
 ## END: Set by rpmautospec
 
 Name:           yq
-Version:        4.53.6
+Version:        4.54.3
 Release:        %autorelease
 Summary:        Portable command-line YAML, JSON, XML, CSV, TOML and properties processor
 
@@ -83,6 +83,7 @@ go test -mod=mod -o %{name} .
 %{zsh_completions_dir}/_%{name}
 
 %changelog
+* Mon Nov 09 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.54.3-1
 * Thu Aug 20 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.6-1
 * Wed Aug 19 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.4-1
 * Tue Aug 04 2026 - Danie de Jager <danie.dejager@gmail.com> - 4.53.3-2
